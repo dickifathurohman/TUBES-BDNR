@@ -38,6 +38,22 @@ def sidebar_filters(data):
     
     return filtered_data, kota_selected
 
+#fungsi untuk menambahkan data
+def create_data(new_data):
+
+    existing_data = sdgs_collection.find_one({"_id": new_data["_id"]})
+    
+    if existing_data:
+        st.error(f"Data {new_data['nama_kabupaten_kota']} pada tahun {new_data['tahun']} sudah ada!")
+    else:
+        # Jika ID belum ada, lakukan penyisipan data baru
+        sdgs_collection.insert_one(new_data)
+        st.success("Data berhasil ditambahkan!")
+        st.session_state.data = load_data()  # Refresh data setelah insert
+        #st.session_state.page_num = 0  # Reset page number to show the first page
+        st.rerun()
+
+
 # Fungsi untuk mengupdate data
 def update_data(doc_id, new_data):
     result = sdgs_collection.update_one({"_id": doc_id}, {"$set": new_data})
@@ -96,11 +112,7 @@ if page == "CRUD":
                 "persentase_penduduk_miskin": ppm,
                 "tingkat_pengangguran_terbuka": tpt
             }
-            sdgs_collection.insert_one(new_data)
-            st.success("Data berhasil ditambahkan!")
-            st.session_state.data = load_data()  # Refresh data setelah insert
-            #st.session_state.page_num = 0  # Reset page number to show the first page
-            st.rerun()
+            create_data(new_data)
 
     # Tabel data dengan filter dan pagination
     st.subheader("Data Tabel")
@@ -109,6 +121,15 @@ if page == "CRUD":
         st.session_state.page_num = 0
 
     paginated_data = get_paginated_data(filtered_data, st.session_state.page_num, page_size)
+
+    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+    col1.write("Nama Kabupaten/Kota")
+    col2.write("Tahun")
+    col3.write("Indeks Keparahan Kemiskinan")
+    col4.write("Persentase Penduduk Miskin")
+    col5.write("Tingkat Pengangguran Terbuka")
+    col6.write("Update")
+    col7.write("Delete")
 
     for _, row in paginated_data.iterrows():
         col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
