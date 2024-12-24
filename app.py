@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 from connect import *
+import time
 
 # Koneksi ke MongoDB
 
@@ -49,14 +50,12 @@ def create_data(new_data):
         # Jika ID belum ada, lakukan penyisipan data baru
         sdgs_collection.insert_one(new_data)
         st.success("Data berhasil ditambahkan!")
-        st.session_state.data = load_data()  # Refresh data setelah insert
-        #st.session_state.page_num = 0  # Reset page number to show the first page
-        st.rerun()
-
 
 # Fungsi untuk mengupdate data
 def update_data(doc_id, new_data):
+
     result = sdgs_collection.update_one({"_id": doc_id}, {"$set": new_data})
+
     if result.modified_count > 0:
         st.success("Data berhasil diperbarui!")
     else:
@@ -99,7 +98,8 @@ if page == "CRUD":
     with st.form("add_data_form"):
         kota = st.selectbox("Pilih Kota", options=data['nama_kabupaten_kota'].unique())
         tahun = st.number_input("Tahun", min_value=2000, max_value=2100, step=1)
-        ikk = st.number_input("Indeks Keparahan Kemiskinan")
+        ikk = st.number_input("Indeks Keparahan Kemiskinan",
+                                help="isi dalam satuan xxxxx")
         ppm = st.number_input("Persentase Penduduk Miskin")
         tpt = st.number_input("Tingkat Pengangguran Terbuka")
         submitted = st.form_submit_button("Tambahkan Data")
@@ -113,6 +113,9 @@ if page == "CRUD":
                 "tingkat_pengangguran_terbuka": tpt
             }
             create_data(new_data)
+            time.sleep(3)
+            st.session_state.data = load_data()
+            st.rerun() 
 
     # Tabel data dengan filter dan pagination
     st.subheader("Data Tabel")
@@ -142,50 +145,57 @@ if page == "CRUD":
         update_btn = col6.button("Update", key=f"update_{row['_id']}")
         delete_btn = col7.button("Delete", key=f"delete_{row['_id']}")
 
+        # Pastikan ada session state untuk form update
+        if "active_form_id" not in st.session_state:
+            st.session_state.active_form_id = None
+
+        # Saat tombol Update diklik
         if update_btn:
+            st.session_state.active_form_id = row["_id"] 
+        
+        if st.session_state.active_form_id == row["_id"]:
             with st.form(f"update_form_{row['_id']}"):
                 st.success(f"{row['_id']}")
                 new_ikk = st.number_input("Indeks Keparahan Kemiskinan", value=row['indeks_keparahan_kemiskinan'])
                 new_ppm = st.number_input("Persentase Penduduk Miskin", value=row['persentase_penduduk_miskin'])
                 new_tpt = st.number_input("Tingkat Pengangguran Terbuka", value=row['tingkat_pengangguran_terbuka'])
-                submitted_update = st.form_submit_button("Update")
+                
+                submitted_update = st.form_submit_button("Submit Update")
+                
                 if submitted_update:
-                    update_data(row['_id'], {
+                    update_data(row["_id"], {
                         "indeks_keparahan_kemiskinan": new_ikk,
                         "persentase_penduduk_miskin": new_ppm,
                         "tingkat_pengangguran_terbuka": new_tpt
                     })
-                    st.session_state.data = load_data()  # Refresh data setelah update
-                    #st.session_state.page_num = 0  # Reset page number
+                    time.sleep(3)
+                    st.session_state.data = load_data()  # Refresh data setelah delete
+                    st.session_state.active_form_id = None
                     st.rerun()
 
         if delete_btn:
             delete_data(row["_id"])
+            time.sleep(3)
             st.session_state.data = load_data()  # Refresh data setelah delete
-            #st.session_state.page_num = 0  # Reset page number
             st.rerun() 
 
     # Pagination Controls
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([3, 1, 3])
     with col2:
 
-        if st.session_state.page_num == 0:
-            #prev_button = st.button("Previous", key="prev")
-            next_button = st.button("Next", key="next")
+        col_left, col_right = st.columns([1, 1])  # Kolom kanan lebih lebar
+        with col_left:
+            prev_button = st.button("Previous", key="prev") if st.session_state.page_num > 0 else None
+        with col_right:
+            next_button = st.button("Next", key="next") if (st.session_state.page_num + 1) * page_size <= len(filtered_data) else None
 
-            if next_button and (st.session_state.page_num + 1) * page_size <= len(filtered_data):
-                st.session_state.page_num += 1
-                st.rerun() 
-        else:
-            prev_button = st.button("Previous", key="prev")
-            next_button = st.button("Next", key="next")
+        if prev_button and st.session_state.page_num > 0:
+            st.session_state.page_num -= 1
+            st.rerun() 
 
-            if prev_button and st.session_state.page_num > 0:
-                st.session_state.page_num -= 1
-                st.rerun() 
-            if next_button and (st.session_state.page_num + 1) * page_size <= len(filtered_data):
-                st.session_state.page_num += 1
-                st.rerun()
+        if next_button and (st.session_state.page_num + 1) * page_size <= len(filtered_data):
+            st.session_state.page_num += 1
+            st.rerun()
 
 
 elif page == "Dashboard":
